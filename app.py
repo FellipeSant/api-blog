@@ -1,29 +1,55 @@
-from base64 import decode
-from flask import Flask, jsonify, make_response , request
-from estrutura_banco_de_dados import Autor,Postagem, app, db
-import json
+from flask import Flask, jsonify, request, make_response
+from flask_sqlalchemy import SQLAlchemy
 import jwt
-from datetime import datetime,timedelta
+import datetime
 from functools import wraps
 # Rota padrão - GET https://localhost:5000
 # Comentário
+app = Flask(__name__)
+
+# Configurações inicias
+app.config['SECRET_KEY'] = 'segredo2030'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blog.db'
+
+db = SQLAlchemy(app)
+db: SQLAlchemy
+
+
+class Postagem(db.Model):
+    __tablename__ = 'postagem'
+    id_postagem = db.Column(db.Integer, primary_key=True)
+    titulo = db.Column(db.String)
+    id_autor = db.Column(db.Integer, db.ForeignKey('autor.id_autor'))
+
+
+class Autor(db.Model):
+    __tablename__ = 'autor'
+    id_autor = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String)
+    email = db.Column(db.String)
+    senha = db.Column(db.String)
+    admin = db.Column(db.Boolean)
+    postagens = db.relationship('Postagem')
 
 def token_obrigatorio(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         token = None
-        # Verificar se um token foi enviado
-        if 'x-access-token' in request.headers:
-            token = request.headers['x-access-token']
+        # Verificar se foi incluído um token na requisição
+        if 'x-acess-token' in request.headers:
+            token = request.headers['x-acess-token']
+        # Se não houver um token, retornar a requesição, solicitando um token
         if not token:
-            return jsonify({'mensagem': 'Token não foi incluído!'}, 401)
-        # Se temos um token, validar acesso consultando o BD
+            return jsonify({'mensagem': 'Token de autenticação precisa ser incluído nessa requisição!'})
         try:
-            resultado = jwt.decode(token, app.config['SECRET_KEY'])
-            autor = Autor.query.filter_by(id_autor=resultado['id_autor']).first()
+            dados = jwt.decode(token, app.config['SECRET_KEY'])
+            autor_atual = Autor.query.filter_by(
+                id_autor=dados['id_autor']).first()
         except:
-            return jsonify({'mensagem': 'Token é inválido'}, 401)
-        return f(autor, *args, **kwargs)
+            return jsonify({'mensagem': 'Token é inválido!'}, 401)
+
+        return f(autor_atual, *args, **kwargs)
+    # retornando o decorador
     return decorated
 
 
@@ -31,14 +57,20 @@ def token_obrigatorio(f):
 def login():
     auth = request.authorization
     if not auth or not auth.username or not auth.password:
+
         return make_response('Login inválido', 401, {'WWW-Authenticate':'Basic realm="Login obrigatório"'})
+
     usuario = Autor.query.filter_by(nome=auth.username).first()
     if not usuario:
+
         return make_response('Login inválido', 401, {'WWW-Authenticate':'Basic realm="Login obrigatório"'})
+
     if auth.password == usuario.senha:
-        token = jwt.encode({'id_autor': usuario.id_autor, 'exp': datetime.utcnow(    
-        ) + timedelta(minutes=30)}, app.config['SECRET_KEY'])
-        return jsonify({'token': token}) and print(token.json)
+        token = jwt.encode({'id_autor': usuario.id_autor, 'exp': datetime.datetime.utcnow(    
+        ) + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
+
+        return jsonify({'token': token.decode('UTF-8')})
+
     return make_response('Login inválido',401,{'WWW-Authenticate':'Basic realm="Login obrigatório"'})
 
 
