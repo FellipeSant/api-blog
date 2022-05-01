@@ -55,23 +55,20 @@ def token_obrigatorio(f):
 
 @app.route('/login')
 def login():
-    auth = request.authorization
-    if not auth or not auth.username or not auth.password:
+    dados_autenticacao = request.authorization
 
-        return make_response('Login inválido', 401, {'WWW-Authenticate':'Basic realm="Login obrigatório"'})
+    if not dados_autenticacao or not dados_autenticacao.username or not dados_autenticacao.password:
+        return make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório!"'})
 
-    usuario = Autor.query.filter_by(nome=auth.username).first()
-    if not usuario:
-
-        return make_response('Login inválido', 401, {'WWW-Authenticate':'Basic realm="Login obrigatório"'})
-
-    if auth.password == usuario.senha:
-        token = jwt.encode({'id_autor': usuario.id_autor, 'exp': datetime.datetime.utcnow(    
+    user = Autor.query.filter_by(nome=dados_autenticacao.username).first()
+    if user.senha == dados_autenticacao.password:
+        token = jwt.encode({'id_autor': user.id_autor, 'exp': datetime.datetime.utcnow(
         ) + datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
 
-        return jsonify({'token': token.decode('UTF-8')})
+        return jsonify({'token': token})
 
-    return make_response('Login inválido',401,{'WWW-Authenticate':'Basic realm="Login obrigatório"'})
+    return make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório!"'})
+
 
 
 
